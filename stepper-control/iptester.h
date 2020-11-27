@@ -7,9 +7,10 @@
  */
 enum testing_state {
     idle,
-    setup,
+    initialization,
     test,
     result,
+    test_abort,
     error
 };
 

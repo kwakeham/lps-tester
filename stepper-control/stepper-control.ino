@@ -39,17 +39,19 @@ sensors_event_t pressure2;
 
 bool LED2R_state = true;
 
+bool button_test_state = 0;
+bool button_abort_state = 0;
 //AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 AccelStepper x_axis(1, 13, 5); // pin 3 = step, pin 6 = direction
-testing_state test_state = iptest_idle; 
+testing_state test_state = idle; 
 
 
-void button_test(int state){
-  digitalWrite(LED1R, LOW);
+void button_processor_test(int state){
+  button_test_state = 1;
 }
 
-void button_abort(int state){
-  digitalWrite(LED2R, LOW);
+void button_processor_abort(int state){
+  button_abort_state = 1;
 }
 
 void setup()
@@ -88,33 +90,60 @@ void setup()
   x_axis.setSpeed(500);	
   x_axis.setAcceleration(50);
   digitalWrite(m_enable, LOW);
+
   digitalWrite(m_slp, HIGH); //HIGH = NOT sleep
   digitalWrite(m_rst, HIGH); //HIGH = NOT reset
 
-  button_test.setCallback(button_test);
-  button_abort.setCallback(button_abort);
+  button_test.setCallback(button_processor_test);
+  button_abort.setCallback(button_processor_abort);
 }
 
 void loop()
 {  
-  x_axis.moveTo(1000);
+  
   //Basic running states
-
-  x_axis.run();
-  read_lps();
-
   if(test_state == idle)
   {
-    button_test.update();
-    button_abort.update();
-
+    button_procesor();
   }
-  else if (test_stat == initialization)
+  else if (test_state == initialization)
   {
-    button_test.update();
-    button_abort.update();
+    button_procesor();
+    x_axis.moveTo(1000);
+    x_axis.run();
   }
-  else
+  else if (test_state == test_abort)
+  {
+    x_axis.moveTo(0);
+    x_axis.run();
+    if(x_axis.currentPosition() == 0)
+    {
+      test_state = idle;
+    }
+  }
+}
+
+/**
+ * @brief 
+ * 
+ */
+void button_procesor()
+{
+  button_test.update();
+  button_abort.update();
+  if(button_abort_state == 1)
+  {
+    test_state = test_abort;
+  }
+
+  if(test_state == idle & button_test_state == 1)
+  {
+    test_state = initialization;
+  } else 
+
+  //Reset the button states
+  button_test_state = 0;
+  button_abort_state = 0;
 }
 
 /**
