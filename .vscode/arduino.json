@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:leonardo",
+    "sketch": "stepper-control\\stepper-control.ino",
+    "port": "COM13"
+}
