@@ -40,6 +40,8 @@ sensors_event_t pressure2;
 
 float pressure_max[2] = {0.0f, 0.0f};
 float pressure_min[2] = {1200.0f,1200.0f};
+bool pressure_fail[2] = {0,0};
+bool test_init = 0;
 
 bool LED2R_state = true;
 
@@ -48,6 +50,7 @@ bool button_abort_state = 0;
 //AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 AccelStepper x_axis(1, 13, 5); // pin 3 = step, pin 6 = direction
 #define stepper_distance 100
+
 testing_state test_state = idle; 
 
 
@@ -125,6 +128,12 @@ void loop()
   else if (test_state == test)
   {
     read_lps();
+    button_procesor();
+    if(pressure_fail[0] && pressure_fail[1])
+    {
+      test_state = test_abort;
+      pressure_reset();
+    }
   }
   else if (test_state == test_abort)
   {
@@ -154,7 +163,7 @@ void button_procesor()
   if(test_state == idle & button_test_state == 1)
   {
     test_state = initialization;
-  } else 
+  } 
 
   //Reset the button states
   button_test_state = 0;
@@ -167,29 +176,45 @@ void pressure_reset()
   pressure_max[1] = 0.0f;
   pressure_min[0] = 1200.0f;
   pressure_min[1] = 1200.0f;
+  pressure_fail[0] = 0;
+  pressure_fail[1] = 0;
+  test_init = 1;
 }
 
 void pressure_stable_process(float sample_pressure, bool channel)
 {
-    
-    if (sample_pressure > pressure_max[channel])
+    //The reset pressures are too different and it'll be hard to know what they should be
+    //unless it's changed to a target pressure (might work?), so wait until both pressures are set then go to stability testing
+    if (test_init)
     {
-        pressure_max[channel] = sample_pressure;
+      pressure_max[channel] = sample_pressure;
+      pressure_min[channel] = sample_pressure;
+      if ((pressure_max[0] == pressure_min[0]) && (pressure_max[1] == pressure_min[1]))
+      {
+        test_init = 0;
+      }
     }
+    else //not test init
+    {
+      if (sample_pressure > pressure_max[channel])
+      {
+          pressure_max[channel] = sample_pressure;
+      }
 
-    if (sample_pressure < pressure_min[channel])
-    {
-        pressure_min[channel] = sample_pressure;
-    }
-    Serial.print("P1Max: ");Serial.print(pressure_max[0]);Serial.print("P2Max: ");Serial.print(pressure_max[1]);Serial.println(" hPa");
-    for(uint8_t i = 0; i < 2; i++)
-    {
-        if((pressure_max[i]-pressure_min[i]) > PRESSURE_STABLE)
-        {
+      if (sample_pressure < pressure_min[channel])
+      {
+          pressure_min[channel] = sample_pressure;
+      }
+      Serial.print("P1Max: ");Serial.print(pressure_max[0]);Serial.print("P2Max: ");Serial.print(pressure_max[1]);Serial.println(" hPa");
+      for(uint8_t i = 0; i < 2; i++)
+      {
+          if((pressure_max[i]-pressure_min[i]) > PRESSURE_STABLE)
+          {
+            pressure_fail[i] = 1;
             Serial.print("Pressure fail in:");
             Serial.println(i);
-
-        }
+          }
+      }
     }
 }
 
