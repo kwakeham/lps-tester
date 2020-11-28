@@ -31,11 +31,15 @@ ButtonDebounce button_abort(btn_abort, 20);
 Adafruit_LPS22 lps;
 Adafruit_LPS22 lps2;
 
+#define PRESSURE_STABLE 5.0f
 //Temporary holding for the two lps22hb pressure sensors
 sensors_event_t temp;
 sensors_event_t pressure;
 sensors_event_t temp2;
 sensors_event_t pressure2;
+
+float pressure_max[2] = {0.0f, 0.0f};
+float pressure_min[2] = {1200.0f,1200.0f};
 
 bool LED2R_state = true;
 
@@ -43,6 +47,7 @@ bool button_test_state = 0;
 bool button_abort_state = 0;
 //AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 AccelStepper x_axis(1, 13, 5); // pin 3 = step, pin 6 = direction
+#define stepper_distance 100
 testing_state test_state = idle; 
 
 
@@ -109,8 +114,17 @@ void loop()
   else if (test_state == initialization)
   {
     button_procesor();
-    x_axis.moveTo(1000);
+    x_axis.moveTo(stepper_distance);
     x_axis.run();
+    if(x_axis.currentPosition() == stepper_distance)
+    {
+      pressure_reset();
+      test_state = test;
+    }
+  }
+  else if (test_state == test)
+  {
+    read_lps();
   }
   else if (test_state == test_abort)
   {
@@ -134,6 +148,7 @@ void button_procesor()
   if(button_abort_state == 1)
   {
     test_state = test_abort;
+    pressure_reset();
   }
 
   if(test_state == idle & button_test_state == 1)
@@ -144,6 +159,38 @@ void button_procesor()
   //Reset the button states
   button_test_state = 0;
   button_abort_state = 0;
+}
+
+void pressure_reset()
+{
+  pressure_max[0] = 0.0f;
+  pressure_max[1] = 0.0f;
+  pressure_min[0] = 1200.0f;
+  pressure_min[1] = 1200.0f;
+}
+
+void pressure_stable_process(float sample_pressure, bool channel)
+{
+    
+    if (sample_pressure > pressure_max[channel])
+    {
+        pressure_max[channel] = sample_pressure;
+    }
+
+    if (sample_pressure < pressure_min[channel])
+    {
+        pressure_min[channel] = sample_pressure;
+    }
+    Serial.print("P1Max: ");Serial.print(pressure_max[0]);Serial.print("P2Max: ");Serial.print(pressure_max[1]);Serial.println(" hPa");
+    for(uint8_t i = 0; i < 2; i++)
+    {
+        if((pressure_max[i]-pressure_min[i]) > PRESSURE_STABLE)
+        {
+            Serial.print("Pressure fail in:");
+            Serial.println(i);
+
+        }
+    }
 }
 
 /**
@@ -157,14 +204,16 @@ void read_lps()
   if(digitalRead(lps_int1) ==0)
   {
     lps.getEvent(&pressure, &temp);// get pressure
-    Serial.print("Temperature: ");Serial.print(temp.temperature);Serial.print(" degrees C,");
-    Serial.print("Pressure: ");Serial.print(pressure.pressure);Serial.println(" hPa,");
+    // Serial.print("Temperature: ");Serial.print(temp.temperature);Serial.print(" degrees C,");
+    // Serial.print("Pressure: ");Serial.print(pressure.pressure);Serial.println(" hPa,");
+    pressure_stable_process(pressure.pressure,0);
   }
   if(digitalRead(lps_int2) == 0)
   {
   lps2.getEvent(&pressure2, &temp2);// get pressure
-  Serial.print("Temperatur2: ");Serial.print(temp2.temperature);Serial.print(" degrees C,");
-  Serial.print("Pressur2: ");Serial.print(pressure2.pressure);Serial.println(" hPa");
+  // Serial.print("Temperatur2: ");Serial.print(temp2.temperature);Serial.print(" degrees C,");
+  // Serial.print("Pressur2: ");Serial.print(pressure2.pressure);Serial.println(" hPa");
+  pressure_stable_process(pressure2.pressure,1);
   }
 }
 
