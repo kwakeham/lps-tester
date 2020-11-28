@@ -47,9 +47,10 @@ bool LED2R_state = true;
 
 bool button_test_state = 0;
 bool button_abort_state = 0;
+bool stepper_sleep = 1;
 //AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 AccelStepper x_axis(1, 13, 5); // pin 3 = step, pin 6 = direction
-#define stepper_distance 100
+#define stepper_distance 2000
 
 testing_state test_state = idle; 
 
@@ -113,9 +114,13 @@ void loop()
   if(test_state == idle)
   {
     button_procesor();
+    stepper_sleep = 1;
+    stepper_process();
   }
   else if (test_state == initialization)
   {
+    stepper_sleep = 0;
+    stepper_process();
     button_procesor();
     x_axis.moveTo(stepper_distance);
     x_axis.run();
@@ -168,6 +173,22 @@ void button_procesor()
   //Reset the button states
   button_test_state = 0;
   button_abort_state = 0;
+}
+
+
+/**
+ * @brief The drv8825 used is loud and annoying, so shutting this down helps
+ * 
+ */
+void stepper_process()
+{
+  if (!stepper_sleep)
+  {
+    digitalWrite(m_slp, HIGH); //HIGH = NOT sleep
+  } else
+  {
+    digitalWrite(m_slp, LOW); //HIGH = NOT sleep
+  }
 }
 
 void pressure_reset()
