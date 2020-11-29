@@ -11,6 +11,7 @@ enum testing_state {
     test,
     result,
     test_abort,
+    test_complete,
     error
 };
 

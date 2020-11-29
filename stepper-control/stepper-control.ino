@@ -17,7 +17,7 @@
 #define btn_abort 18
 #define btn_test 19
 ButtonDebounce button_test(btn_test, 200);
-ButtonDebounce button_abort(btn_abort, 20);
+ButtonDebounce button_abort(btn_abort, 50);
 
 #define lps_int2 12
 #define lps_int1 11
@@ -36,6 +36,7 @@ Adafruit_LPS22 lps;
 Adafruit_LPS22 lps2;
 
 #define PRESSURE_STABLE 5.0f
+#define PRESSURE_TEST_TIME 10000
 //Temporary holding for the two lps22hb pressure sensors
 sensors_event_t temp;
 sensors_event_t pressure;
@@ -47,6 +48,9 @@ float pressure_min[2] = {1200.0f,1200.0f};
 float pressure_current[2] = {0.0f, 0.0f};
 bool pressure_fail[2] = {0,0};
 bool test_init = 0;
+
+unsigned long test_start;
+unsigned long current_time;
 
 bool button_test_state = 0;
 bool button_abort_state = 0;
@@ -85,7 +89,7 @@ void setup()
   Serial.println("Both LPS22 Found!");
 
   lps.setDataRate(LPS22_RATE_10_HZ);
-  lps2.setDataRate(LPS22_RATE_25_HZ);
+  lps2.setDataRate(LPS22_RATE_10_HZ);
     
   pinMode(m_enable, OUTPUT);
   pinMode(m_slp, OUTPUT);
@@ -130,7 +134,6 @@ void loop()
   {
     button_procesor();
     stepper_process(false);
-
   }
   else if (test_state == initialization)
   {
@@ -142,18 +145,24 @@ void loop()
     {
       pressure_reset();
       test_state = test;
-      led_process( green, 0);
-      led_process( green, 1);
+      led_process( purple, 0);
+      led_process( purple, 1);
+      test_start = millis();
     }
   }
   else if (test_state == test)
   {
+    current_time = millis();
     read_lps();
     button_procesor();
     if(pressure_fail[0] && pressure_fail[1])
     {
       test_state = test_abort;
       pressure_reset();
+    }
+    if (current_time - test_start > PRESSURE_TEST_TIME)
+    {
+      test_state = test_complete;
     }
   }
   else if (test_state == test_abort)
@@ -164,6 +173,28 @@ void loop()
     led_process(red, 1);
     if(x_axis.currentPosition() == 0)
     {
+      test_state = idle;
+    }
+  }
+  else if (test_state == test_complete)
+  {
+    x_axis.moveTo(0);
+    x_axis.run();
+
+    if(x_axis.currentPosition() == 0)
+    {
+      for(uint8_t i = 0; i < 2; i++)
+      {
+        if(!pressure_fail[i])
+        {
+          led_process(green, i);
+        }
+        else
+        {
+          led_process(red, i);
+        }
+      }
+      pressure_reset();
       test_state = idle;
     }
   }
@@ -181,6 +212,7 @@ void button_procesor()
   {
     test_state = test_abort;
     pressure_reset();
+    Serial.println("Test Abort");
   }
 
   if(test_state == idle & button_test_state == 1)
@@ -289,6 +321,20 @@ void led_process(rgb_state newstate, bool channel)
         else
         {
           digitalWrite(LED2R, HIGH); //HIGH = off
+          digitalWrite(LED2G, HIGH); //HIGH = off
+          digitalWrite(LED2B, LOW); //HIGH = off
+        }
+        break;
+      case purple:
+        if (i == 0)
+        {
+          digitalWrite(LED1R, LOW); //HIGH = off
+          digitalWrite(LED1G, HIGH); //HIGH = off
+          digitalWrite(LED1B, LOW); //HIGH = off
+        }
+        else
+        {
+          digitalWrite(LED2R, LOW); //HIGH = off
           digitalWrite(LED2G, HIGH); //HIGH = off
           digitalWrite(LED2B, LOW); //HIGH = off
         }
