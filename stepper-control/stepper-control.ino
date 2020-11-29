@@ -40,6 +40,7 @@ sensors_event_t pressure2;
 
 float pressure_max[2] = {0.0f, 0.0f};
 float pressure_min[2] = {1200.0f,1200.0f};
+float pressure_current[2] = {0.0f, 0.0f};
 bool pressure_fail[2] = {0,0};
 bool test_init = 0;
 
@@ -53,6 +54,7 @@ AccelStepper x_axis(1, 13, 5); // pin 3 = step, pin 6 = direction
 #define stepper_distance 2000
 
 testing_state test_state = idle; 
+rgb_state led_state[2] = {off,off};
 
 
 void button_processor_test(int state){
@@ -96,8 +98,8 @@ void setup()
   pinMode(lps_int2, INPUT_PULLUP);
   
   x_axis.setMaxSpeed(1000);
-  x_axis.setSpeed(500);	
-  x_axis.setAcceleration(50);
+  x_axis.setSpeed(800);	
+  x_axis.setAcceleration(200);
   digitalWrite(m_enable, LOW);
 
   digitalWrite(m_slp, HIGH); //HIGH = NOT sleep
@@ -109,18 +111,15 @@ void setup()
 
 void loop()
 {  
-  
   //Basic running states
   if(test_state == idle)
   {
     button_procesor();
-    stepper_sleep = 1;
-    stepper_process();
+    stepper_process(false);
   }
   else if (test_state == initialization)
   {
-    stepper_sleep = 0;
-    stepper_process();
+    stepper_process(true);
     button_procesor();
     x_axis.moveTo(stepper_distance);
     x_axis.run();
@@ -168,6 +167,7 @@ void button_procesor()
   if(test_state == idle & button_test_state == 1)
   {
     test_state = initialization;
+    Serial.println("start test");
   } 
 
   //Reset the button states
@@ -180,15 +180,20 @@ void button_procesor()
  * @brief The drv8825 used is loud and annoying, so shutting this down helps
  * 
  */
-void stepper_process()
+void stepper_process(bool sleep_command)
 {
-  if (!stepper_sleep)
+  if (stepper_sleep != sleep_command)
   {
-    digitalWrite(m_slp, HIGH); //HIGH = NOT sleep
-  } else
-  {
-    digitalWrite(m_slp, LOW); //HIGH = NOT sleep
+    if (stepper_sleep)
+    {
+      digitalWrite(m_slp, LOW); 
+    } else
+    {
+      digitalWrite(m_slp, HIGH);
+    }
+    stepper_sleep = sleep_command;
   }
+
 }
 
 void pressure_reset()
@@ -202,10 +207,16 @@ void pressure_reset()
   test_init = 1;
 }
 
+void led_process(rgb_state newstate, bool channel)
+{
+  
+}
+
 void pressure_stable_process(float sample_pressure, bool channel)
 {
     //The reset pressures are too different and it'll be hard to know what they should be
     //unless it's changed to a target pressure (might work?), so wait until both pressures are set then go to stability testing
+    pressure_current[channel] = sample_pressure;
     if (test_init)
     {
       pressure_max[channel] = sample_pressure;
@@ -226,7 +237,9 @@ void pressure_stable_process(float sample_pressure, bool channel)
       {
           pressure_min[channel] = sample_pressure;
       }
-      Serial.print("P1Max: ");Serial.print(pressure_max[0]);Serial.print("P2Max: ");Serial.print(pressure_max[1]);Serial.println(" hPa");
+      // Serial.print("P1Max: ");Serial.print(pressure_max[0]);Serial.print(" P2Max: ");Serial.print(pressure_max[1]);Serial.print(" hPa");
+      // Serial.print(" P1Min: ");Serial.print(pressure_min[0]);Serial.print(" P2Min: ");Serial.print(pressure_min[1]);Serial.println(" hPa");
+      Serial.print(" P1: ");Serial.print(pressure_current[0]);Serial.print(" P2: ");Serial.print(pressure_current[1]);Serial.println(" hPa");
       for(uint8_t i = 0; i < 2; i++)
       {
           if((pressure_max[i]-pressure_min[i]) > PRESSURE_STABLE)

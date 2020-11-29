@@ -14,5 +14,16 @@ enum testing_state {
     error
 };
 
+enum rgb_state {
+    off,
+    red,
+    green,
+    blue,
+    orange,
+    purple,
+    yellow,
+    white
+};
+
 
 #endif
