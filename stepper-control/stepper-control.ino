@@ -26,7 +26,11 @@ ButtonDebounce button_abort(btn_abort, 20);
 #define m_rst 10
 
 #define LED1R 20
+#define LED1G 22
+#define LED1B 21
 #define LED2R 4
+#define LED2G 7
+#define LED2B 6
 
 Adafruit_LPS22 lps;
 Adafruit_LPS22 lps2;
@@ -43,8 +47,6 @@ float pressure_min[2] = {1200.0f,1200.0f};
 float pressure_current[2] = {0.0f, 0.0f};
 bool pressure_fail[2] = {0,0};
 bool test_init = 0;
-
-bool LED2R_state = true;
 
 bool button_test_state = 0;
 bool button_abort_state = 0;
@@ -89,10 +91,20 @@ void setup()
   pinMode(m_slp, OUTPUT);
   pinMode(m_rst, OUTPUT);
 
+  //setup LED outputs
   pinMode(LED1R, OUTPUT);
   digitalWrite(LED1R, HIGH); //HIGH = off
+  pinMode(LED1G, OUTPUT);
+  digitalWrite(LED1G, HIGH); //HIGH = off
+  pinMode(LED1B, OUTPUT);
+  digitalWrite(LED1B, HIGH); //HIGH = off
   pinMode(LED2R, OUTPUT);
   digitalWrite(LED2R, HIGH); //HIGH = off
+  pinMode(LED2G, OUTPUT);
+  digitalWrite(LED2G, HIGH); //HIGH = off
+  pinMode(LED2B, OUTPUT);
+  digitalWrite(LED2B, HIGH); //HIGH = off
+  
 
   pinMode(lps_int1, INPUT_PULLUP);
   pinMode(lps_int2, INPUT_PULLUP);
@@ -107,6 +119,8 @@ void setup()
 
   button_test.setCallback(button_processor_test);
   button_abort.setCallback(button_processor_abort);
+  led_process( blue, 0);
+  led_process( blue, 1);
 }
 
 void loop()
@@ -116,6 +130,7 @@ void loop()
   {
     button_procesor();
     stepper_process(false);
+
   }
   else if (test_state == initialization)
   {
@@ -127,6 +142,8 @@ void loop()
     {
       pressure_reset();
       test_state = test;
+      led_process( green, 0);
+      led_process( green, 1);
     }
   }
   else if (test_state == test)
@@ -143,6 +160,8 @@ void loop()
   {
     x_axis.moveTo(0);
     x_axis.run();
+    led_process(red, 0);
+    led_process(red, 1);
     if(x_axis.currentPosition() == 0)
     {
       test_state = idle;
@@ -209,7 +228,77 @@ void pressure_reset()
 
 void led_process(rgb_state newstate, bool channel)
 {
-  
+  if (led_state[channel] != newstate)
+  {
+    led_state[channel] = newstate;
+    
+    for(uint8_t i = 0; i < 2; i++)
+    {
+      switch (led_state[i])
+      {
+      case orange:
+        if (i == 0)
+        {
+          digitalWrite(LED1R, LOW); //HIGH = off
+          digitalWrite(LED1G, LOW); //HIGH = off
+          digitalWrite(LED1B, HIGH); //HIGH = off
+        }
+        else
+        {
+          digitalWrite(LED2R, LOW); //HIGH = off
+          digitalWrite(LED2G, LOW); //HIGH = off
+          digitalWrite(LED2B, HIGH); //HIGH = off
+        }
+        
+        break;
+      case red:
+        if (i == 0)
+        {
+          digitalWrite(LED1R, LOW); //HIGH = off
+          digitalWrite(LED1G, HIGH); //HIGH = off
+          digitalWrite(LED1B, HIGH); //HIGH = off
+        }
+        else
+        {
+          digitalWrite(LED2R, LOW); //HIGH = off
+          digitalWrite(LED2G, HIGH); //HIGH = off
+          digitalWrite(LED2B, HIGH); //HIGH = off
+        }
+        break;
+      case green:
+        if (i == 0)
+        {
+          digitalWrite(LED1R, HIGH); //HIGH = off
+          digitalWrite(LED1G, LOW); //HIGH = off
+          digitalWrite(LED1B, HIGH); //HIGH = off
+        }
+        else
+        {
+          digitalWrite(LED2R, HIGH); //HIGH = off
+          digitalWrite(LED2G, LOW); //HIGH = off
+          digitalWrite(LED2B, HIGH); //HIGH = off
+        }
+        break;
+      case blue:
+        if (i == 0)
+        {
+          digitalWrite(LED1R, HIGH); //HIGH = off
+          digitalWrite(LED1G, HIGH); //HIGH = off
+          digitalWrite(LED1B, LOW); //HIGH = off
+        }
+        else
+        {
+          digitalWrite(LED2R, HIGH); //HIGH = off
+          digitalWrite(LED2G, HIGH); //HIGH = off
+          digitalWrite(LED2B, LOW); //HIGH = off
+        }
+        break;
+      default:
+        break;
+      }
+    }
+
+  }
 }
 
 void pressure_stable_process(float sample_pressure, bool channel)
@@ -245,6 +334,7 @@ void pressure_stable_process(float sample_pressure, bool channel)
           if((pressure_max[i]-pressure_min[i]) > PRESSURE_STABLE)
           {
             pressure_fail[i] = 1;
+            led_process(red,i);
             Serial.print("Pressure fail in:");
             Serial.println(i);
           }
